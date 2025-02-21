@@ -48,20 +48,14 @@ const FileUpload = () => {
   const handleFileSelect = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
-
-    if (!file.name.toLowerCase().endsWith('.obj')) {
-      setUploadStatus('error');
-      setErrorMessage('Invalid file type. Please select an .obj file.');
-      return;
-    }
-
+  
     setUploadStatus('uploading');
     setUploadProgress(0);
     setModelUrl(null);
     setErrorMessage('');
     setCurrentFile(file);
     abortController.current = new AbortController();
-
+  
     try {
       const newFileId = await initializeUpload(file);
       setFileId(newFileId);
@@ -69,17 +63,17 @@ const FileUpload = () => {
       
       for (let i = 0; i < chunksRef.current.length; i++) {
         if (uploadStatus === 'paused') break;
-
+  
         const response = await uploadChunk(
           newFileId,
           chunksRef.current[i],
           i,
           abortController.current.signal
         );
-
+  
         const progress = ((i + 1) / chunksRef.current.length) * 100;
         setUploadProgress(progress);
-
+  
         if (response?.upload_status === 'completed' && response?.file_path) {
           setUploadStatus('completed');
           const baseUrl = 'http://localhost:8000';
@@ -90,6 +84,9 @@ const FileUpload = () => {
           setModelUrl(fullUrl);
           break;
         }
+  
+        // Add a delay between chunk uploads (e.g., 500ms)
+        await new Promise((resolve) => setTimeout(resolve, 500));
       }
     } catch (error) {
       if (error.name === 'AbortError') {

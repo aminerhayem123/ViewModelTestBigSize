@@ -1,4 +1,3 @@
-# file_upload_project/settings.py
 from pathlib import Path
 import os
 
@@ -8,7 +7,7 @@ SECRET_KEY = 'FDSFDSFSDFSD5165S1DF'
 
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['localhost', '127.0.0.1']  # Add your frontend and backend domains here
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -17,7 +16,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'rest_framework',   
+    'rest_framework',
     'corsheaders',
     'upload',
 ]
@@ -34,7 +33,12 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'file_upload_project.urls'
+
+# CORS Configuration
 CORS_ALLOW_ALL_ORIGINS = True  # For testing only. Restrict in production.
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",  # Allow your frontend origin
+]
 
 TEMPLATES = [
     {
@@ -81,7 +85,8 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = 'static/'
+# Static and Media Files Configuration
+STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
 MEDIA_URL = '/media/'
@@ -89,18 +94,32 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-]
-
 # File Upload Settings
 MAX_UPLOAD_SIZE = 4 * 1024 * 1024 * 1024  # 4GB
 CHUNK_SIZE = 1 * 1024 * 1024  # 1MB
 
+# Django REST Framework Configuration
 REST_FRAMEWORK = {
     'DEFAULT_PARSER_CLASSES': [
         'rest_framework.parsers.JSONParser',
         'rest_framework.parsers.MultiPartParser',
         'rest_framework.parsers.FormParser',
-    ]
+    ],
+    'DEFAULT_THROTTLE_CLASSES': [],  # Disable throttling
+    'DEFAULT_THROTTLE_RATES': {},    # Disable throttling
+}
+
+# Logging Configuration (Optional)
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
 }
