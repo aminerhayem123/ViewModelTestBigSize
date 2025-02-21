@@ -28,7 +28,6 @@ class FileUploadInitView(APIView):
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         
-# upload/views.py
 class ChunkUploadView(APIView):
     def post(self, request):
         try:
@@ -54,13 +53,17 @@ class ChunkUploadView(APIView):
                 upload.upload_status = 'combining'
                 upload.save()
                 
-                # Combine chunks
+                # Combine chunks using streaming
                 final_path = os.path.join(upload_dir, upload.file_name)
                 with open(final_path, 'wb+') as destination:
                     for i in range(upload.total_chunks):
                         chunk_path = os.path.join(upload_dir, f'chunk_{i}')
                         with open(chunk_path, 'rb') as source:
-                            destination.write(source.read())
+                            while True:
+                                data = source.read(1024 * 1024)  # Read 1MB at a time
+                                if not data:
+                                    break
+                                destination.write(data)
                         os.remove(chunk_path)
                 
                 upload.file_path = os.path.join('uploads', str(file_id), upload.file_name)

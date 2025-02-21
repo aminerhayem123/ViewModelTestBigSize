@@ -49,6 +49,15 @@ const FileUpload = () => {
     const file = event.target.files[0];
     if (!file) return;
   
+    // Check file size limit (e.g., 4GB)
+    const MAX_FILE_SIZE = 4 * 1024 * 1024 * 1024; // 4GB
+    if (file.size > MAX_FILE_SIZE) {
+      setUploadStatus('error');
+      setErrorMessage('File size exceeds the maximum limit of 4GB.');
+      return;
+    }
+  
+    // Reset states
     setUploadStatus('uploading');
     setUploadProgress(0);
     setModelUrl(null);
@@ -57,13 +66,18 @@ const FileUpload = () => {
     abortController.current = new AbortController();
   
     try {
+      // Initialize the upload and get the file ID
       const newFileId = await initializeUpload(file);
       setFileId(newFileId);
+  
+      // Split the file into chunks
       chunksRef.current = splitFileIntoChunks(file);
-      
+  
+      // Upload each chunk sequentially
       for (let i = 0; i < chunksRef.current.length; i++) {
         if (uploadStatus === 'paused') break;
   
+        // Upload the current chunk
         const response = await uploadChunk(
           newFileId,
           chunksRef.current[i],
@@ -71,14 +85,16 @@ const FileUpload = () => {
           abortController.current.signal
         );
   
+        // Update progress
         const progress = ((i + 1) / chunksRef.current.length) * 100;
         setUploadProgress(progress);
   
+        // If the upload is completed, set the model URL
         if (response?.upload_status === 'completed' && response?.file_path) {
           setUploadStatus('completed');
           const baseUrl = 'http://localhost:8000';
-          const filePath = response.file_path.startsWith('/') 
-            ? response.file_path 
+          const filePath = response.file_path.startsWith('/')
+            ? response.file_path
             : `/${response.file_path}`;
           const fullUrl = `${baseUrl}/media${filePath}`;
           setModelUrl(fullUrl);
