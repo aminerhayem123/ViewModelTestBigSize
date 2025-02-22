@@ -122,46 +122,56 @@ const FileUpload = () => {
   const handleResume = async () => {
     if (!currentFile || !fileId) return;
   
-    setUploadStatus('uploading');
+    // Create new abort controller for the resumed upload
     abortController.current = new AbortController();
-  
+    
     try {
-      // Get the last successfully uploaded chunk index from the server
       const response = await fetch(`http://localhost:8000/api/upload/status/${fileId}/`);
       if (!response.ok) throw new Error('Failed to get upload status');
       
       const data = await response.json();
-      // Calculate the last successful chunk index
-      const lastSuccessfulChunk = Math.max(0, Math.floor((data.progress / 100) * chunksRef.current.length) - 1);
+      const lastSuccessfulChunk = Math.floor((data.progress / 100) * chunksRef.current.length);
       
-      // Resume from the next chunk after the last successful one
-      for (let i = lastSuccessfulChunk + 1; i < chunksRef.current.length; i++) {
-        if (uploadStatus === 'paused') break;
+      // Set the upload status before starting the upload
+      setUploadStatus('uploading');
+      setUploadProgress(data.progress);
   
-        const response = await uploadChunk(
-          fileId,
-          chunksRef.current[i],
-          i,
-          abortController.current.signal
-        );
-  
-        // Update progress based on actual chunks uploaded
-        const progress = ((i + 1) / chunksRef.current.length) * 100;
-        setUploadProgress(progress);
-  
-        if (response?.upload_status === 'completed' && response?.file_path) {
-          setUploadStatus('completed');
-          const baseUrl = 'http://localhost:8000';
-          const filePath = response.file_path.startsWith('/') 
-            ? response.file_path 
-            : `/${response.file_path}`;
-          const fullUrl = `${baseUrl}/media${filePath}`;
-          setModelUrl(fullUrl);
+      for (let i = lastSuccessfulChunk; i < chunksRef.current.length; i++) {
+        // Check if component is still mounted and not paused
+        if (abortController.current.signal.aborted) {
           break;
         }
   
-        // Add a small delay between chunks
-        await new Promise(resolve => setTimeout(resolve, 500));
+        try {
+          const response = await uploadChunk(
+            fileId,
+            chunksRef.current[i],
+            i,
+            abortController.current.signal
+          );
+  
+          const progress = ((i + 1) / chunksRef.current.length) * 100;
+          setUploadProgress(progress);
+  
+          if (response?.upload_status === 'completed' && response?.file_path) {
+            setUploadStatus('completed');
+            const baseUrl = 'http://localhost:8000';
+            const filePath = response.file_path.startsWith('/') 
+              ? response.file_path 
+              : `/${response.file_path}`;
+            const fullUrl = `${baseUrl}/media${filePath}`;
+            setModelUrl(fullUrl);
+            break;
+          }
+  
+          await new Promise(resolve => setTimeout(resolve, 500));
+        } catch (error) {
+          if (error.name === 'AbortError') {
+            setUploadStatus('paused');
+            return;
+          }
+          throw error;
+        }
       }
     } catch (error) {
       setUploadStatus('error');
