@@ -6,7 +6,6 @@ import { OrbitControls, Environment } from '@react-three/drei';
 
 const Model = ({ url }) => {
   const obj = useLoader(OBJLoader, url);
-  // Adjust scale as needed for your model
   return <primitive object={obj} scale={[0.01, 0.01, 0.01]} />;
 };
 
@@ -21,9 +20,7 @@ const ModelViewer = ({ url, onError }) => {
           <ambientLight intensity={0.5} />
           <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} />
           <pointLight position={[-10, -10, -10]} />
-          
           <Model url={url} />
-          
           <OrbitControls
             enablePan={true}
             enableZoom={true}

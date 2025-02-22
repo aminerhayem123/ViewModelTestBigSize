@@ -20,24 +20,36 @@ export const uploadChunk = async (fileId, chunk, chunkNumber, signal) => {
   formData.append('chunk_number', chunkNumber.toString());
   formData.append('file_id', fileId.toString());
 
-  const response = await fetch('http://localhost:8000/api/upload/chunk/', {
-    method: 'POST',
-    body: formData,
-    signal,
-  });
+  try {
+    const response = await fetch('http://localhost:8000/api/upload/chunk/', {
+      method: 'POST',
+      body: formData,
+      signal,
+    });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Upload failed: ${response.status} ${response.statusText} - ${errorText}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Upload failed: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    return response.json();
+  } catch (error) {
+    if (error.name === 'AbortError') {
+      throw error;
+    }
+    throw new Error(`Upload failed: ${error.message}`);
   }
-
-  return response.json();
 };
 
 export const getUploadStatus = async (fileId) => {
-  const response = await fetch(`http://localhost:8000/api/upload/status/${fileId}/`);
-  if (!response.ok) {
-    throw new Error('Failed to get upload status');
+  try {
+    const response = await fetch(`http://localhost:8000/api/upload/status/${fileId}/`);
+    if (!response.ok) {
+      throw new Error('Failed to get upload status');
+    }
+    return response.json();
+  } catch (error) {
+    console.error('Error getting upload status:', error);
+    throw error;
   }
-  return response.json();
 };
