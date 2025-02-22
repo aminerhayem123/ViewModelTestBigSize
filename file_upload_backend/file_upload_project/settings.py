@@ -34,10 +34,12 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'file_upload_project.urls'
 
-# CORS Configuration
-CORS_ALLOW_ALL_ORIGINS = True  # For testing only. Restrict in production.
+# CORS settings
+CORS_ALLOW_ALL_ORIGINS = True  # For development only
+CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",  # Allow your frontend origin
+    "http://localhost:3000",
+    "http://localhost:3001",
 ]
 
 TEMPLATES = [
@@ -91,7 +93,9 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-
+# Ensure directory exists
+UPLOAD_ROOT = os.path.join(MEDIA_ROOT, 'uploads')
+os.makedirs(UPLOAD_ROOT, exist_ok=True)
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # File Upload Settings

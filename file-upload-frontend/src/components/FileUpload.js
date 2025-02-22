@@ -15,47 +15,39 @@ const FileUpload = () => {
 
   const initializeUpload = async (file) => {
     try {
-      const chunkSize = 1024 * 1024; // 1MB chunks
-      const totalChunks = Math.ceil(file.size / chunkSize);
+      const data = {
+        filename: file.name,
+        filesize: file.size,
+        total_chunks: Math.ceil(file.size / (1024 * 1024))
+      };
+      
+      console.log('Sending initialization request:', data);
       
       const response = await fetch('http://localhost:8000/api/upload/init/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          filename: file.name,
-          filesize: file.size,
-          total_chunks: totalChunks,
-        }),
+        body: JSON.stringify(data)
       });
-
+  
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
+        const errorData = await response.json();
         console.error('Server error details:', errorData);
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-
-      const data = await response.json();
-      console.log('Upload initialized successfully:', data);
-      return data.file_id;
+  
+      const responseData = await response.json();
+      console.log('Server response:', responseData);
+      return responseData.file_id;
     } catch (error) {
       console.error('Error initializing upload:', error);
       throw error;
     }
   };
-
   const handleFileSelect = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
-  
-    // Check file size limit (e.g., 4GB)
-    const MAX_FILE_SIZE = 4 * 1024 * 1024 * 1024; // 4GB
-    if (file.size > MAX_FILE_SIZE) {
-      setUploadStatus('error');
-      setErrorMessage('File size exceeds the maximum limit of 4GB.');
-      return;
-    }
   
     // Reset states
     setUploadStatus('uploading');
@@ -66,43 +58,39 @@ const FileUpload = () => {
     abortController.current = new AbortController();
   
     try {
-      // Initialize the upload and get the file ID
+      // Initialize the upload
       const newFileId = await initializeUpload(file);
       setFileId(newFileId);
   
       // Split the file into chunks
-      chunksRef.current = splitFileIntoChunks(file);
+      const { chunks, totalChunks } = splitFileIntoChunks(file);
+      chunksRef.current = chunks;
   
-      // Upload each chunk sequentially
-      for (let i = 0; i < chunksRef.current.length; i++) {
+      // Upload chunks
+      for (let i = 0; i < chunks.length; i++) {
         if (uploadStatus === 'paused') break;
   
-        // Upload the current chunk
         const response = await uploadChunk(
           newFileId,
-          chunksRef.current[i],
+          chunks[i],
           i,
           abortController.current.signal
         );
   
-        // Update progress
-        const progress = ((i + 1) / chunksRef.current.length) * 100;
+        const progress = ((i + 1) / totalChunks) * 100;
         setUploadProgress(progress);
   
-        // If the upload is completed, set the model URL
         if (response?.upload_status === 'completed' && response?.file_path) {
           setUploadStatus('completed');
           const baseUrl = 'http://localhost:8000';
           const filePath = response.file_path.startsWith('/')
             ? response.file_path
             : `/${response.file_path}`;
-          const fullUrl = `${baseUrl}/media${filePath}`;
-          setModelUrl(fullUrl);
+          setModelUrl(`${baseUrl}/media${filePath}`);
           break;
         }
   
-        // Add a delay between chunk uploads (e.g., 500ms)
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
     } catch (error) {
       if (error.name === 'AbortError') {
