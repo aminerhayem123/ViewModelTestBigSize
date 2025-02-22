@@ -13,11 +13,12 @@ export const splitFileIntoChunks = (file) => {
 
   return { chunks, totalChunks };
 };
+
 export const uploadChunk = async (fileId, chunk, chunkNumber, signal) => {
   const formData = new FormData();
-  formData.append('chunk', chunk);
-  formData.append('chunk_number', chunkNumber);
-  formData.append('file_id', fileId);
+  formData.append('chunk', new Blob([chunk], { type: 'application/octet-stream' }));
+  formData.append('chunk_number', chunkNumber.toString());
+  formData.append('file_id', fileId.toString());
 
   const response = await fetch('http://localhost:8000/api/upload/chunk/', {
     method: 'POST',
@@ -26,8 +27,17 @@ export const uploadChunk = async (fileId, chunk, chunkNumber, signal) => {
   });
 
   if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
+    const errorText = await response.text();
+    throw new Error(`Upload failed: ${response.status} ${response.statusText} - ${errorText}`);
   }
 
+  return response.json();
+};
+
+export const getUploadStatus = async (fileId) => {
+  const response = await fetch(`http://localhost:8000/api/upload/status/${fileId}/`);
+  if (!response.ok) {
+    throw new Error('Failed to get upload status');
+  }
   return response.json();
 };

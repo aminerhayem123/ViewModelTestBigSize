@@ -138,56 +138,67 @@ const FileUpload = () => {
     abortController.current = new AbortController();
     
     try {
-      const response = await fetch(`http://localhost:8000/api/upload/status/${fileId}/`);
-      if (!response.ok) throw new Error('Failed to get upload status');
+      // First, get the current upload status
+      const statusResponse = await fetch(`http://localhost:8000/api/upload/status/${fileId}/`);
+      if (!statusResponse.ok) throw new Error('Failed to get upload status');
       
-      const data = await response.json();
-      const lastSuccessfulChunk = Math.floor((data.progress / 100) * chunksRef.current.length);
+      const statusData = await statusResponse.json();
       
-      // Set the upload status before starting the upload
+      // Calculate the last successful chunk more accurately
+      const lastSuccessfulChunk = statusData.chunks_received || 0;
+      
       setUploadStatus('uploading');
-      setUploadProgress(data.progress);
+      setUploadProgress((lastSuccessfulChunk / chunksRef.current.length) * 100);
   
+      // Resume upload from the last successful chunk
       for (let i = lastSuccessfulChunk; i < chunksRef.current.length; i++) {
-        // Check if component is still mounted and not paused
         if (abortController.current.signal.aborted) {
+          setUploadStatus('paused');
           break;
         }
   
         try {
-          const response = await uploadChunk(
+          const chunkResponse = await uploadChunk(
             fileId,
             chunksRef.current[i],
             i,
             abortController.current.signal
           );
   
+          // Update progress
           const progress = ((i + 1) / chunksRef.current.length) * 100;
           setUploadProgress(progress);
   
-          if (response?.upload_status === 'completed' && response?.file_path) {
+          // Check if upload is complete
+          if (chunkResponse?.upload_status === 'completed' && chunkResponse?.file_path) {
             setUploadStatus('completed');
             const baseUrl = 'http://localhost:8000';
-            const filePath = response.file_path.startsWith('/') 
-              ? response.file_path 
-              : `/${response.file_path}`;
-            const fullUrl = `${baseUrl}/media${filePath}`;
-            setModelUrl(fullUrl);
+            const filePath = chunkResponse.file_path.startsWith('/') 
+              ? chunkResponse.file_path 
+              : `/${chunkResponse.file_path}`;
+            setModelUrl(`${baseUrl}/media${filePath}`);
             break;
           }
   
-          await new Promise(resolve => setTimeout(resolve, 500));
+          // Add delay between chunks
+          await new Promise(resolve => setTimeout(resolve, 100));
         } catch (error) {
           if (error.name === 'AbortError') {
             setUploadStatus('paused');
             return;
           }
+          // Log the actual error response
+          if (error.response) {
+            const errorData = await error.response.text();
+            console.error('Chunk upload error:', errorData);
+          }
           throw error;
         }
       }
     } catch (error) {
+      console.error('Resume error:', error);
       setUploadStatus('error');
-      setErrorMessage(handleUploadError(error));
+      setErrorMessage(error.message || 'Failed to resume upload');
     }
   };
 

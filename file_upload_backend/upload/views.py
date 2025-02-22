@@ -27,8 +27,10 @@ class FileUploadInitView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        
+
 class ChunkUploadView(APIView):
+    parser_classes = (MultiPartParser,)
+
     def post(self, request):
         try:
             chunk_number = int(request.data['chunk_number'])
@@ -49,84 +51,44 @@ class ChunkUploadView(APIView):
             
             # Update progress
             upload.chunks_received += 1
-            if upload.chunks_received == upload.total_chunks:
-                upload.upload_status = 'combining'
-                upload.save()
-                
-                # Combine chunks using streaming
+            
+            # Check if all chunks are received
+            if upload.chunks_received >= upload.total_chunks:
+                # Combine chunks
                 final_path = os.path.join(upload_dir, upload.file_name)
                 with open(final_path, 'wb+') as destination:
                     for i in range(upload.total_chunks):
                         chunk_path = os.path.join(upload_dir, f'chunk_{i}')
-                        with open(chunk_path, 'rb') as source:
-                            while True:
-                                data = source.read(1024 * 1024)  # Read 1MB at a time
-                                if not data:
-                                    break
-                                destination.write(data)
-                        os.remove(chunk_path)
+                        if os.path.exists(chunk_path):
+                            with open(chunk_path, 'rb') as source:
+                                destination.write(source.read())
+                            os.remove(chunk_path)
                 
                 upload.file_path = os.path.join('uploads', str(file_id), upload.file_name)
                 upload.upload_status = 'completed'
-                upload.save()
-                
-                # Return completed response with file path
-                return Response({
-                    'status': 'success',
-                    'progress': 100,
-                    'upload_status': 'completed',
-                    'file_path': upload.file_path
-                })
             
             upload.save()
             
-            # Return progress response
             return Response({
                 'status': 'success',
-                'progress': (upload.chunks_received / upload.total_chunks) * 100,
-                'upload_status': upload.upload_status
+                'progress': upload.get_upload_progress(),
+                'upload_status': upload.upload_status,
+                'file_path': upload.file_path if upload.upload_status == 'completed' else None
             })
             
         except FileUpload.DoesNotExist:
             return Response({'error': 'File upload not found'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
 class UploadStatusView(APIView):
     def get(self, request, file_id):
         try:
             upload = FileUpload.objects.get(id=file_id)
             return Response({
                 'status': upload.upload_status,
-                'progress': (upload.chunks_received / upload.total_chunks) * 100
+                'progress': upload.get_upload_progress(),
+                'chunks_received': upload.chunks_received
             })
         except FileUpload.DoesNotExist:
-            return Response(
-                {'error': 'File not found'}, 
-                status=status.HTTP_404_NOT_FOUND
-            )
-class CleanupUploadView(APIView):
-    def post(self, request, file_id):
-        try:
-            upload = FileUpload.objects.get(id=file_id)
-            upload_dir = os.path.join(settings.MEDIA_ROOT, 'uploads', str(file_id))
-            
-            # Delete upload directory if it exists
-            if os.path.exists(upload_dir):
-                import shutil
-                shutil.rmtree(upload_dir)
-            
-            # Delete database record
-            upload.delete()
-            
-            return Response({
-                'status': 'success',
-                'message': 'Upload cleaned up successfully'
-            })
-        except FileUpload.DoesNotExist:
-            return Response({
-                'error': 'Upload not found'
-            }, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return Response({
-                'error': f'Cleanup failed: {str(e)}'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'error': 'Upload not found'}, status=status.HTTP_404_NOT_FOUND)
