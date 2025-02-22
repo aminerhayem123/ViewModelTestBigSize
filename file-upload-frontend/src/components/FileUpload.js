@@ -1,7 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ModelViewer from './ModelViewer';
 import { splitFileIntoChunks, uploadChunk } from '../utils/uploadHelpers';
 import { handleUploadError } from '../utils/errorHandlers';
+
+const CHUNK_SIZE = 1024 * 1024; // 1MB chunks
 
 const FileUpload = () => {
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -15,40 +17,47 @@ const FileUpload = () => {
 
   const initializeUpload = async (file) => {
     try {
-      const data = {
-        filename: file.name,
-        filesize: file.size,
-        total_chunks: Math.ceil(file.size / (1024 * 1024))
-      };
-      
-      console.log('Sending initialization request:', data);
+      const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
       
       const response = await fetch('http://localhost:8000/api/upload/init/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(data)
+        body: JSON.stringify({
+          filename: file.name,
+          filesize: file.size,
+          total_chunks: totalChunks,
+        }),
       });
-  
+
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => null);
         console.error('Server error details:', errorData);
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-  
-      const responseData = await response.json();
-      console.log('Server response:', responseData);
-      return responseData.file_id;
+
+      const data = await response.json();
+      console.log('Upload initialized successfully:', data);
+      return data.file_id;
     } catch (error) {
       console.error('Error initializing upload:', error);
       throw error;
     }
   };
+
   const handleFileSelect = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
-  
+
+    // Check file size limit (e.g., 4GB)
+    const MAX_FILE_SIZE = 4 * 1024 * 1024 * 1024; // 4GB
+    if (file.size > MAX_FILE_SIZE) {
+      setUploadStatus('error');
+      setErrorMessage('File size exceeds the maximum limit of 4GB.');
+      return;
+    }
+
     // Reset states
     setUploadStatus('uploading');
     setUploadProgress(0);
@@ -56,40 +65,55 @@ const FileUpload = () => {
     setErrorMessage('');
     setCurrentFile(file);
     abortController.current = new AbortController();
-  
+
     try {
-      // Initialize the upload
-      const newFileId = await initializeUpload(file);
-      setFileId(newFileId);
-  
-      // Split the file into chunks
       const { chunks, totalChunks } = splitFileIntoChunks(file);
       chunksRef.current = chunks;
-  
+
+      // Initialize upload
+      const response = await fetch('http://localhost:8000/api/upload/init/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          filename: file.name,
+          filesize: file.size,
+          total_chunks: totalChunks,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setFileId(data.file_id);
+
       // Upload chunks
       for (let i = 0; i < chunks.length; i++) {
-        if (uploadStatus === 'paused') break;
-  
-        const response = await uploadChunk(
-          newFileId,
+        if (abortController.current.signal.aborted) break;
+
+        const chunkResponse = await uploadChunk(
+          data.file_id,
           chunks[i],
           i,
           abortController.current.signal
         );
-  
-        const progress = ((i + 1) / totalChunks) * 100;
+
+        const progress = ((i + 1) / chunks.length) * 100;
         setUploadProgress(progress);
-  
-        if (response?.upload_status === 'completed' && response?.file_path) {
+
+        if (chunkResponse?.upload_status === 'completed' && chunkResponse?.file_path) {
           setUploadStatus('completed');
           const baseUrl = 'http://localhost:8000';
-          const filePath = response.file_path.startsWith('/')
-            ? response.file_path
-            : `/${response.file_path}`;
+          const filePath = chunkResponse.file_path.startsWith('/') 
+            ? chunkResponse.file_path 
+            : `/${chunkResponse.file_path}`;
           setModelUrl(`${baseUrl}/media${filePath}`);
           break;
         }
-  
+
         await new Promise(resolve => setTimeout(resolve, 500));
       }
     } catch (error) {
@@ -243,5 +267,4 @@ const FileUpload = () => {
     </div>
   );
 };
-
 export default FileUpload;
