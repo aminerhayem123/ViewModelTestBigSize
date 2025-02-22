@@ -121,30 +121,34 @@ const FileUpload = () => {
 
   const handleResume = async () => {
     if (!currentFile || !fileId) return;
-
+  
     setUploadStatus('uploading');
     abortController.current = new AbortController();
-
+  
     try {
+      // Get the last successfully uploaded chunk index from the server
       const response = await fetch(`http://localhost:8000/api/upload/status/${fileId}/`);
       if (!response.ok) throw new Error('Failed to get upload status');
       
       const data = await response.json();
-      const lastChunkIndex = Math.floor((data.progress / 100) * chunksRef.current.length);
+      // Calculate the last successful chunk index
+      const lastSuccessfulChunk = Math.max(0, Math.floor((data.progress / 100) * chunksRef.current.length) - 1);
       
-      for (let i = lastChunkIndex; i < chunksRef.current.length; i++) {
+      // Resume from the next chunk after the last successful one
+      for (let i = lastSuccessfulChunk + 1; i < chunksRef.current.length; i++) {
         if (uploadStatus === 'paused') break;
-
+  
         const response = await uploadChunk(
           fileId,
           chunksRef.current[i],
           i,
           abortController.current.signal
         );
-
+  
+        // Update progress based on actual chunks uploaded
         const progress = ((i + 1) / chunksRef.current.length) * 100;
         setUploadProgress(progress);
-
+  
         if (response?.upload_status === 'completed' && response?.file_path) {
           setUploadStatus('completed');
           const baseUrl = 'http://localhost:8000';
@@ -155,6 +159,9 @@ const FileUpload = () => {
           setModelUrl(fullUrl);
           break;
         }
+  
+        // Add a small delay between chunks
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
     } catch (error) {
       setUploadStatus('error');
