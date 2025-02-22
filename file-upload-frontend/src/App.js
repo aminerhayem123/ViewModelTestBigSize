@@ -21,7 +21,7 @@ function App() {
                 Upload your 3D model
               </h2>
               <p className="text-gray-600 mt-1">
-                Supported formats: .gltf, .glb
+                Supported formats: .obj
               </p>
             </div>
             <FileUpload />
