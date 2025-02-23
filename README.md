@@ -15,8 +15,8 @@ This project implements a chunked file upload system using Django (backend) and 
 #### Steps:
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/yourusername/chunked-upload.git
-   cd chunked-upload/backend
+   git clone https://github.com/aminerhayem123/ViewModelTestBigSize.git
+   cd file_upload_backend
    ```
 
 2. **Create and activate a virtual environment:**
@@ -51,7 +51,7 @@ This project implements a chunked file upload system using Django (backend) and 
 #### Steps:
 1. **Navigate to the frontend directory:**
    ```bash
-   cd ../frontend
+   cd file-upload-frontend
    ```
 
 2. **Install dependencies:**
@@ -61,9 +61,9 @@ This project implements a chunked file upload system using Django (backend) and 
 
 3. **Start the development server:**
    ```bash
-   npm run dev
+   npm start
    ```
-   The frontend will be available at `http://localhost:5173/`
+   The frontend will be available at `http://localhost:3000/`
 
 ---
 
